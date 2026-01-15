@@ -15,6 +15,7 @@ export const user = pgTable("User", {
   id: uuid("id").primaryKey().notNull().defaultRandom(),
   email: varchar("email", { length: 64 }).notNull(),
   password: varchar("password", { length: 64 }),
+  stripeCustomerId: varchar("stripeCustomerId", { length: 255 }),
 });
 
 export type User = InferSelectModel<typeof user>;
@@ -168,3 +169,40 @@ export const stream = pgTable(
 );
 
 export type Stream = InferSelectModel<typeof stream>;
+
+export const subscription = pgTable("Subscription", {
+  id: uuid("id").primaryKey().notNull().defaultRandom(),
+  userId: uuid("userId")
+    .notNull()
+    .references(() => user.id)
+    .unique(),
+  stripeCustomerId: varchar("stripeCustomerId", { length: 255 }),
+  stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 255 }),
+  stripePriceId: varchar("stripePriceId", { length: 255 }),
+  tier: varchar("tier", {
+    enum: ["free", "pro", "creator", "business", "enterprise"],
+  })
+    .notNull()
+    .default("free"),
+  billingInterval: varchar("billingInterval", {
+    enum: ["monthly", "annual"],
+  }),
+  status: varchar("status", {
+    enum: [
+      "active",
+      "canceled",
+      "incomplete",
+      "incomplete_expired",
+      "past_due",
+      "trialing",
+      "unpaid",
+    ],
+  }),
+  currentPeriodStart: timestamp("currentPeriodStart"),
+  currentPeriodEnd: timestamp("currentPeriodEnd"),
+  cancelAtPeriodEnd: boolean("cancelAtPeriodEnd").default(false),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+});
+
+export type Subscription = InferSelectModel<typeof subscription>;

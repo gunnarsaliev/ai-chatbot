@@ -27,6 +27,8 @@ import {
   type Suggestion,
   stream,
   suggestion,
+  type Subscription,
+  subscription,
   type User,
   user,
   vote,
@@ -597,6 +599,142 @@ export async function getStreamIdsByChatId({ chatId }: { chatId: string }) {
     throw new ChatSDKError(
       "bad_request:database",
       "Failed to get stream ids by chat id"
+    );
+  }
+}
+
+export async function getSubscriptionByUserId({ userId }: { userId: string }) {
+  try {
+    const [userSubscription] = await db
+      .select()
+      .from(subscription)
+      .where(eq(subscription.userId, userId));
+
+    return userSubscription || null;
+  } catch (_error) {
+    throw new ChatSDKError(
+      "bad_request:database",
+      "Failed to get subscription by user id"
+    );
+  }
+}
+
+export async function upsertSubscription({
+  userId,
+  stripeCustomerId,
+  stripeSubscriptionId,
+  stripePriceId,
+  tier,
+  billingInterval,
+  status,
+  currentPeriodStart,
+  currentPeriodEnd,
+  cancelAtPeriodEnd,
+}: {
+  userId: string;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  stripePriceId?: string;
+  tier: "free" | "pro" | "creator" | "business" | "enterprise";
+  billingInterval?: "monthly" | "annual";
+  status?:
+    | "active"
+    | "canceled"
+    | "incomplete"
+    | "incomplete_expired"
+    | "past_due"
+    | "trialing"
+    | "unpaid";
+  currentPeriodStart?: Date;
+  currentPeriodEnd?: Date;
+  cancelAtPeriodEnd?: boolean;
+}) {
+  try {
+    const [existingSubscription] = await db
+      .select()
+      .from(subscription)
+      .where(eq(subscription.userId, userId));
+
+    if (existingSubscription) {
+      return await db
+        .update(subscription)
+        .set({
+          stripeCustomerId,
+          stripeSubscriptionId,
+          stripePriceId,
+          tier,
+          billingInterval,
+          status,
+          currentPeriodStart,
+          currentPeriodEnd,
+          cancelAtPeriodEnd,
+          updatedAt: new Date(),
+        })
+        .where(eq(subscription.userId, userId))
+        .returning();
+    }
+
+    return await db
+      .insert(subscription)
+      .values({
+        userId,
+        stripeCustomerId,
+        stripeSubscriptionId,
+        stripePriceId,
+        tier,
+        billingInterval,
+        status,
+        currentPeriodStart,
+        currentPeriodEnd,
+        cancelAtPeriodEnd,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+  } catch (_error) {
+    throw new ChatSDKError(
+      "bad_request:database",
+      "Failed to upsert subscription"
+    );
+  }
+}
+
+export async function updateUserStripeCustomerId({
+  userId,
+  stripeCustomerId,
+}: {
+  userId: string;
+  stripeCustomerId: string;
+}) {
+  try {
+    return await db
+      .update(user)
+      .set({ stripeCustomerId })
+      .where(eq(user.id, userId));
+  } catch (_error) {
+    throw new ChatSDKError(
+      "bad_request:database",
+      "Failed to update user stripe customer id"
+    );
+  }
+}
+
+export async function getUserByStripeCustomerId({
+  stripeCustomerId,
+}: {
+  stripeCustomerId: string;
+}) {
+  try {
+    const [foundUser] = await db
+      .select()
+      .from(user)
+      .where(eq(user.stripeCustomerId, stripeCustomerId));
+
+    return foundUser || null;
+  } catch (_error) {
+    throw new ChatSDKError(
+      "bad_request:database",
+      "Failed to get user by stripe customer id"
     );
   }
 }
