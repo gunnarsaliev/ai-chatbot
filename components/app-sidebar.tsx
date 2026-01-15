@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@iconify/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { User } from "next-auth";
@@ -71,8 +72,9 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                   setOpenMobile(false);
                 }}
               >
-                <span className="cursor-pointer rounded-md px-2 font-semibold text-lg hover:bg-muted">
-                  Chatbot
+                <span className="cursor-pointer flex flex-row items-center gap-2 rounded-md px-2 font-semibold text-lg hover:bg-muted">
+                  <Icon className="size-5" icon="game-icons:chef-toque" />{" "}
+                  Cooksa
                 </span>
               </Link>
               <div className="flex flex-row gap-1">
