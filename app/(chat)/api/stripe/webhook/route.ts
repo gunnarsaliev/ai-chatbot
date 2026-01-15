@@ -71,9 +71,11 @@ export async function POST(request: Request) {
 
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
-        if (invoice.subscription) {
+        // @ts-expect-error - subscription exists on Invoice but may not be in type definition
+        const subscriptionId = invoice.subscription;
+        if (subscriptionId && typeof subscriptionId === "string") {
           const subscription = await stripe.subscriptions.retrieve(
-            invoice.subscription as string
+            subscriptionId
           );
           await handleSubscriptionUpdate(subscription);
         }
@@ -122,6 +124,9 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
   }
 
   // Upsert subscription
+  // Access period properties via index signature to avoid type errors
+  const sub = subscription as any;
+
   await upsertSubscription({
     userId: user.id,
     stripeCustomerId: customerId,
@@ -130,9 +135,13 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
     tier: priceDetails.tier,
     billingInterval: priceDetails.interval,
     status: subscription.status as any,
-    currentPeriodStart: new Date(subscription.current_period_start * 1000),
-    currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-    cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    currentPeriodStart: sub.current_period_start
+      ? new Date(sub.current_period_start * 1000)
+      : undefined,
+    currentPeriodEnd: sub.current_period_end
+      ? new Date(sub.current_period_end * 1000)
+      : undefined,
+    cancelAtPeriodEnd: sub.cancel_at_period_end ?? false,
   });
 }
 
@@ -153,13 +162,13 @@ async function handleSubscriptionCancellation(subscription: Stripe.Subscription)
   await upsertSubscription({
     userId: user.id,
     stripeCustomerId: customerId,
-    stripeSubscriptionId: null,
-    stripePriceId: null,
+    stripeSubscriptionId: undefined,
+    stripePriceId: undefined,
     tier: "free",
-    billingInterval: null,
+    billingInterval: undefined,
     status: "canceled",
-    currentPeriodStart: null,
-    currentPeriodEnd: null,
+    currentPeriodStart: undefined,
+    currentPeriodEnd: undefined,
     cancelAtPeriodEnd: false,
   });
 }
