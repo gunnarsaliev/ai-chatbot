@@ -7,6 +7,18 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 
+// Disable body parsing for Stripe webhooks
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+// GET handler to verify webhook is accessible
+export async function GET() {
+  return NextResponse.json({
+    message: "Stripe webhook endpoint is active",
+    timestamp: new Date().toISOString(),
+  });
+}
+
 export async function POST(request: Request) {
   const body = await request.text();
   const signature = (await headers()).get("stripe-signature");
@@ -41,9 +53,17 @@ export async function POST(request: Request) {
   }
 
   try {
+    console.log(`[Webhook] Received event: ${event.type}`);
+
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
+        console.log(`[Webhook] Checkout session completed:`, {
+          sessionId: session.id,
+          customer: session.customer,
+          mode: session.mode,
+          subscription: session.subscription,
+        });
 
         if (session.mode === "subscription" && session.subscription) {
           // Retrieve the subscription to get full details
@@ -52,6 +72,7 @@ export async function POST(request: Request) {
           );
 
           await handleSubscriptionUpdate(subscription);
+          console.log(`[Webhook] Subscription created successfully`);
         }
         break;
       }
@@ -100,8 +121,15 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
   const customerId = subscription.customer as string;
   const priceId = subscription.items.data[0]?.price.id;
 
+  console.log(`[handleSubscriptionUpdate] Processing subscription:`, {
+    subscriptionId: subscription.id,
+    customerId,
+    priceId,
+    status: subscription.status,
+  });
+
   if (!priceId) {
-    console.error("No price ID found in subscription");
+    console.error("[handleSubscriptionUpdate] No price ID found in subscription");
     return;
   }
 
@@ -111,23 +139,29 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
   });
 
   if (!user) {
-    console.error(`No user found for Stripe customer ${customerId}`);
+    console.error(`[handleSubscriptionUpdate] No user found for Stripe customer ${customerId}`);
+    console.error(`[handleSubscriptionUpdate] This likely means the customer was created in Stripe but not linked in our database`);
     return;
   }
+
+  console.log(`[handleSubscriptionUpdate] Found user:`, { userId: user.id, email: user.email });
 
   // Get tier and interval from price ID
   const priceDetails = getPriceDetails(priceId);
 
   if (!priceDetails) {
-    console.error(`Unknown price ID: ${priceId}`);
+    console.error(`[handleSubscriptionUpdate] Unknown price ID: ${priceId}`);
+    console.error(`[handleSubscriptionUpdate] Make sure this price ID is configured in STRIPE_PRICE_* environment variables`);
     return;
   }
+
+  console.log(`[handleSubscriptionUpdate] Price details:`, priceDetails);
 
   // Upsert subscription
   // Access period properties via index signature to avoid type errors
   const sub = subscription as any;
 
-  await upsertSubscription({
+  const subscriptionData = {
     userId: user.id,
     stripeCustomerId: customerId,
     stripeSubscriptionId: subscription.id,
@@ -142,7 +176,17 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
       ? new Date(sub.current_period_end * 1000)
       : undefined,
     cancelAtPeriodEnd: sub.cancel_at_period_end ?? false,
-  });
+  };
+
+  console.log(`[handleSubscriptionUpdate] Upserting subscription:`, subscriptionData);
+
+  try {
+    await upsertSubscription(subscriptionData);
+    console.log(`[handleSubscriptionUpdate] Successfully upserted subscription for user ${user.id}`);
+  } catch (error) {
+    console.error(`[handleSubscriptionUpdate] Error upserting subscription:`, error);
+    throw error;
+  }
 }
 
 async function handleSubscriptionCancellation(subscription: Stripe.Subscription) {
