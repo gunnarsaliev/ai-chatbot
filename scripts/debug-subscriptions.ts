@@ -42,7 +42,7 @@ async function main() {
       WHERE table_name = 'Subscription'
       ORDER BY ordinal_position;
     `);
-    console.log("   Columns:", columns.rows);
+    console.log("   Columns:", columns);
   } catch (error) {
     console.error("   ❌ Error checking structure:", error);
   }

@@ -7,10 +7,6 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 
-// Disable body parsing for Stripe webhooks
-export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
-
 // GET handler to verify webhook is accessible
 export async function GET() {
   return NextResponse.json({
