@@ -7,11 +7,12 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 
-// GET handler to verify webhook is accessible
+// GET handler to verify webhook is accessible and ready to receive events
 export async function GET() {
   return NextResponse.json({
     message: "Stripe webhook endpoint is active",
     timestamp: new Date().toISOString(),
+    status: "ready",
   });
 }
 
