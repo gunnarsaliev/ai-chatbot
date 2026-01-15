@@ -70,6 +70,23 @@ export function SidebarUserNav({ user }: { user: User }) {
             data-testid="user-nav-menu"
             side="top"
           >
+            {!isGuest && (
+              <>
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onSelect={() => router.push("/profile")}
+                >
+                  Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onSelect={() => router.push("/pricing")}
+                >
+                  Pricing
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuItem
               className="cursor-pointer"
               data-testid="user-nav-item-theme"

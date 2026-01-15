@@ -29,6 +29,16 @@ interface PricingTier {
   cta: string;
 }
 
+// Stripe price IDs - these will be undefined until you configure them in .env.local
+const STRIPE_PRICES = {
+  proMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO_MONTHLY,
+  proAnnual: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO_ANNUAL,
+  creatorMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_CREATOR_MONTHLY,
+  creatorAnnual: process.env.NEXT_PUBLIC_STRIPE_PRICE_CREATOR_ANNUAL,
+  businessMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_BUSINESS_MONTHLY,
+  businessAnnual: process.env.NEXT_PUBLIC_STRIPE_PRICE_BUSINESS_ANNUAL,
+};
+
 const tiers: PricingTier[] = [
   {
     name: "Free",
@@ -48,8 +58,8 @@ const tiers: PricingTier[] = [
     name: "Pro",
     priceMonthly: 8,
     priceAnnual: 80,
-    priceIdMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO_MONTHLY,
-    priceIdAnnual: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO_ANNUAL,
+    priceIdMonthly: STRIPE_PRICES.proMonthly,
+    priceIdAnnual: STRIPE_PRICES.proAnnual,
     messagesPerDay: "500",
     savedRecipes: "Unlimited",
     vectorDocs: "1,000",
@@ -66,8 +76,8 @@ const tiers: PricingTier[] = [
     name: "Creator",
     priceMonthly: 20,
     priceAnnual: 200,
-    priceIdMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_CREATOR_MONTHLY,
-    priceIdAnnual: process.env.NEXT_PUBLIC_STRIPE_PRICE_CREATOR_ANNUAL,
+    priceIdMonthly: STRIPE_PRICES.creatorMonthly,
+    priceIdAnnual: STRIPE_PRICES.creatorAnnual,
     messagesPerDay: "2,000",
     savedRecipes: "Unlimited",
     vectorDocs: "5,000",
@@ -84,8 +94,8 @@ const tiers: PricingTier[] = [
     name: "Business",
     priceMonthly: 50,
     priceAnnual: 500,
-    priceIdMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_BUSINESS_MONTHLY,
-    priceIdAnnual: process.env.NEXT_PUBLIC_STRIPE_PRICE_BUSINESS_ANNUAL,
+    priceIdMonthly: STRIPE_PRICES.businessMonthly,
+    priceIdAnnual: STRIPE_PRICES.businessAnnual,
     messagesPerDay: "10,000",
     savedRecipes: "Unlimited",
     vectorDocs: "Unlimited",
@@ -137,7 +147,10 @@ export function Pricing() {
       interval === "monthly" ? tier.priceIdMonthly : tier.priceIdAnnual;
 
     if (!priceId) {
-      console.error("Price ID not configured");
+      console.error("Price ID not configured for", tier.name, interval);
+      alert(
+        "Stripe is not configured yet. Please add your Stripe Price IDs to the .env.local file. See STRIPE_SETUP.md for instructions."
+      );
       return;
     }
 
@@ -152,15 +165,24 @@ export function Pricing() {
         body: JSON.stringify({ priceId }),
       });
 
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Checkout error:", errorData);
+        alert(`Error: ${errorData.error || "Failed to create checkout session"}`);
+        return;
+      }
+
       const data = await response.json();
 
       if (data.url) {
         window.location.href = data.url;
       } else {
         console.error("No checkout URL returned");
+        alert("Failed to get checkout URL. Please try again.");
       }
     } catch (error) {
       console.error("Error creating checkout session:", error);
+      alert("An error occurred. Please check the console and try again.");
     } finally {
       setLoading(null);
     }
