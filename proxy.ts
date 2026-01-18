@@ -13,7 +13,7 @@ export async function proxy(request: NextRequest) {
     return new Response("pong", { status: 200 });
   }
 
-  if (pathname.startsWith("/api/auth") || pathname.startsWith("/api/stripe/webhook")) {
+  if (pathname.startsWith("/api/auth") || pathname.startsWith("/api/stripe/webhook") || pathname.startsWith("/api/graphql")) {
     return NextResponse.next();
   }
 

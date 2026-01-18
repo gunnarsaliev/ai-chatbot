@@ -21,6 +21,7 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
 import {
@@ -119,6 +120,20 @@ export function AppSidebar({ user }: { user: User | undefined }) {
           </SidebarMenu>
         </SidebarHeader>
         <SidebarContent>
+          <SidebarMenu className="px-2 pb-4">
+            <SidebarMenuItem>
+              <Link
+                className="flex flex-row items-center gap-3 rounded-md px-2 py-2 hover:bg-muted"
+                href="/explore"
+                onClick={() => {
+                  setOpenMobile(false);
+                }}
+              >
+                <Icon className="size-3" icon="ph:compass" />
+                <span className="text-sm">Explore</span>
+              </Link>
+            </SidebarMenuItem>
+          </SidebarMenu>
           <SidebarHistory user={user} />
         </SidebarContent>
         <SidebarFooter>{user && <SidebarUserNav user={user} />}</SidebarFooter>

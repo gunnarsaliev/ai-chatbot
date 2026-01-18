@@ -1,0 +1,13 @@
+# Example GraphQL Query
+# This file demonstrates how to write GraphQL operations
+# GraphQL Code Generator will automatically generate TypeScript types for this query
+
+# query ExampleQuery {
+#   # Add your query fields here based on your schema
+#   # Example:
+#   # users {
+#   #   id
+#   #   name
+#   #   email
+#   # }
+# }

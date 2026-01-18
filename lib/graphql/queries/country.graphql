@@ -1,0 +1,12 @@
+query GetCountry($id: ID!) {
+  Country(id: $id) {
+    id
+    name
+    capital
+    population
+    image {
+      alt
+      url
+    }
+  }
+}

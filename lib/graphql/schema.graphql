@@ -1,0 +1,21 @@
+type Query {
+  Countries: CountriesResponse
+  Country(id: ID!): Country
+}
+
+type CountriesResponse {
+  docs: [Country!]!
+}
+
+type Country {
+  id: ID!
+  name: String!
+  capital: String
+  population: Int
+  image: Image
+}
+
+type Image {
+  alt: String
+  url: String!
+}

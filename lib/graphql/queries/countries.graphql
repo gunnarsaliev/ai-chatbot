@@ -1,0 +1,14 @@
+query GetCountries {
+  Countries {
+    docs {
+      name
+      id
+      capital
+      population
+      image {
+        alt
+        url
+      }
+    }
+  }
+}
