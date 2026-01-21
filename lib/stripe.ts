@@ -12,51 +12,86 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 });
 
 export const STRIPE_PRICE_IDS = {
+  // B2C Individual Plans
   pro_monthly: process.env.STRIPE_PRICE_PRO_MONTHLY || "",
   pro_annual: process.env.STRIPE_PRICE_PRO_ANNUAL || "",
-  creator_monthly: process.env.STRIPE_PRICE_CREATOR_MONTHLY || "",
-  creator_annual: process.env.STRIPE_PRICE_CREATOR_ANNUAL || "",
-  business_monthly: process.env.STRIPE_PRICE_BUSINESS_MONTHLY || "",
-  business_annual: process.env.STRIPE_PRICE_BUSINESS_ANNUAL || "",
+  power_monthly: process.env.STRIPE_PRICE_POWER_MONTHLY || "",
+  power_annual: process.env.STRIPE_PRICE_POWER_ANNUAL || "",
+
+  // B2B Business Plans
+  business_starter_monthly: process.env.STRIPE_PRICE_BUSINESS_STARTER_MONTHLY || "",
+  business_starter_annual: process.env.STRIPE_PRICE_BUSINESS_STARTER_ANNUAL || "",
+  business_pro_monthly: process.env.STRIPE_PRICE_BUSINESS_PRO_MONTHLY || "",
+  business_pro_annual: process.env.STRIPE_PRICE_BUSINESS_PRO_ANNUAL || "",
 } as const;
 
-export type SubscriptionTier = "free" | "pro" | "creator" | "business" | "enterprise";
+export type SubscriptionTier =
+  | "free"
+  | "pro"
+  | "power"
+  | "business_free"
+  | "business_starter"
+  | "business_pro";
 export type BillingInterval = "monthly" | "annual";
 
 export interface TierLimits {
-  messagesPerDay: number;
+  // B2C limits (Individual plans)
+  messagesPerMonth?: number; // total messages per month for B2C
+  messagesPerDay?: number; // daily cap for B2C free tier
+
+  // B2B limits (Business plans)
+  messageCredits?: number; // monthly message credits for B2B
+  finetuneStorageMB?: number; // AI agent fine-tune storage
+  aiAgentCount?: number; // number of AI agents allowed
+
+  // Common limits
   savedRecipes: number;
   vectorDocs: number;
   teamSeats?: number;
 }
 
 export const TIER_LIMITS: Record<SubscriptionTier, TierLimits> = {
+  // B2C Individual Plans
   free: {
-    messagesPerDay: 50,
+    messagesPerMonth: 100, // 100 total per month
+    messagesPerDay: 10, // daily cap of 10
     savedRecipes: 5,
     vectorDocs: 50,
   },
   pro: {
-    messagesPerDay: 500,
+    messagesPerMonth: 500, // 500 total per month
     savedRecipes: -1, // unlimited
     vectorDocs: 1000,
   },
-  creator: {
-    messagesPerDay: 2000,
+  power: {
+    messagesPerMonth: 3000, // 3000 total per month
     savedRecipes: -1, // unlimited
     vectorDocs: 5000,
   },
-  business: {
-    messagesPerDay: 10000,
-    savedRecipes: -1, // unlimited
-    vectorDocs: -1, // unlimited
-    teamSeats: 3,
+
+  // B2B Business Plans
+  business_free: {
+    messageCredits: 100, // 100 message credits
+    finetuneStorageMB: 0.5, // 500 KB = 0.5 MB
+    aiAgentCount: 1,
+    savedRecipes: -1, // unlimited menu items
+    vectorDocs: 100,
   },
-  enterprise: {
-    messagesPerDay: -1, // unlimited
+  business_starter: {
+    messageCredits: 10000, // 10K message credits
+    finetuneStorageMB: 20, // 20 MB storage
+    aiAgentCount: 3,
+    savedRecipes: -1, // unlimited
+    vectorDocs: 1000,
+    teamSeats: 1, // per user pricing
+  },
+  business_pro: {
+    messageCredits: -1, // unlimited
+    finetuneStorageMB: 60, // 60 MB storage
+    aiAgentCount: 10,
     savedRecipes: -1, // unlimited
     vectorDocs: -1, // unlimited
-    teamSeats: -1, // unlimited
+    teamSeats: 1, // per user pricing
   },
 };
 
@@ -66,19 +101,32 @@ export function getPriceDetails(priceId: string): {
   interval: BillingInterval;
 } | null {
   switch (priceId) {
+    // B2C Individual Plans
     case STRIPE_PRICE_IDS.pro_monthly:
       return { tier: "pro", interval: "monthly" };
     case STRIPE_PRICE_IDS.pro_annual:
       return { tier: "pro", interval: "annual" };
-    case STRIPE_PRICE_IDS.creator_monthly:
-      return { tier: "creator", interval: "monthly" };
-    case STRIPE_PRICE_IDS.creator_annual:
-      return { tier: "creator", interval: "annual" };
-    case STRIPE_PRICE_IDS.business_monthly:
-      return { tier: "business", interval: "monthly" };
-    case STRIPE_PRICE_IDS.business_annual:
-      return { tier: "business", interval: "annual" };
+    case STRIPE_PRICE_IDS.power_monthly:
+      return { tier: "power", interval: "monthly" };
+    case STRIPE_PRICE_IDS.power_annual:
+      return { tier: "power", interval: "annual" };
+
+    // B2B Business Plans
+    case STRIPE_PRICE_IDS.business_starter_monthly:
+      return { tier: "business_starter", interval: "monthly" };
+    case STRIPE_PRICE_IDS.business_starter_annual:
+      return { tier: "business_starter", interval: "annual" };
+    case STRIPE_PRICE_IDS.business_pro_monthly:
+      return { tier: "business_pro", interval: "monthly" };
+    case STRIPE_PRICE_IDS.business_pro_annual:
+      return { tier: "business_pro", interval: "annual" };
+
     default:
       return null;
   }
+}
+
+// Helper to determine if tier is business
+export function isBusinessTier(tier: SubscriptionTier): boolean {
+  return tier.startsWith("business_");
 }

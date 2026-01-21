@@ -71,6 +71,13 @@
       "when": 1768504288941,
       "tag": "0009_youthful_the_spike",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1768999745813,
+      "tag": "0010_silly_sage",
+      "breakpoints": true
     }
   ]
 }

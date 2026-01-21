@@ -3,7 +3,16 @@ import { getSubscriptionByUserId } from "@/lib/db/queries";
 import { TIER_LIMITS, type SubscriptionTier } from "@/lib/stripe";
 
 type Entitlements = {
-  maxMessagesPerDay: number;
+  // B2C limits
+  maxMessagesPerMonth?: number;
+  maxMessagesPerDay?: number;
+
+  // B2B limits
+  messageCredits?: number;
+  finetuneStorageMB?: number;
+  aiAgentCount?: number;
+
+  // Common limits
   maxSavedRecipes: number;
   maxVectorDocs: number;
   teamSeats?: number;
@@ -14,7 +23,8 @@ export const entitlementsByUserType: Record<UserType, Entitlements> = {
    * For users without an account
    */
   guest: {
-    maxMessagesPerDay: 20,
+    maxMessagesPerMonth: 20,
+    maxMessagesPerDay: 5,
     maxSavedRecipes: 0,
     maxVectorDocs: 0,
   },
@@ -23,7 +33,8 @@ export const entitlementsByUserType: Record<UserType, Entitlements> = {
    * For users with an account (free tier by default)
    */
   regular: {
-    maxMessagesPerDay: 50,
+    maxMessagesPerMonth: 100,
+    maxMessagesPerDay: 10,
     maxSavedRecipes: 5,
     maxVectorDocs: 50,
   },
@@ -35,9 +46,10 @@ export async function getUserEntitlements(
   try {
     const subscription = await getSubscriptionByUserId({ userId });
 
-    // If no subscription or not active, use free tier
+    // If no subscription or not active, use free tier (B2C)
     if (!subscription || subscription.status !== "active") {
       return {
+        maxMessagesPerMonth: TIER_LIMITS.free.messagesPerMonth,
         maxMessagesPerDay: TIER_LIMITS.free.messagesPerDay,
         maxSavedRecipes: TIER_LIMITS.free.savedRecipes,
         maxVectorDocs: TIER_LIMITS.free.vectorDocs,
@@ -47,16 +59,31 @@ export async function getUserEntitlements(
     const tier = subscription.tier as SubscriptionTier;
     const limits = TIER_LIMITS[tier];
 
+    // Check if Stripe metadata overrides exist
+    const metadata = subscription.metadata as any;
+
     return {
-      maxMessagesPerDay: limits.messagesPerDay,
-      maxSavedRecipes: limits.savedRecipes,
-      maxVectorDocs: limits.vectorDocs,
-      teamSeats: limits.teamSeats,
+      // B2C limits
+      maxMessagesPerMonth:
+        metadata?.maxMessagesPerMonth ?? limits.messagesPerMonth,
+      maxMessagesPerDay: metadata?.maxMessagesPerDay ?? limits.messagesPerDay,
+
+      // B2B limits
+      messageCredits: metadata?.messageCredits ?? limits.messageCredits,
+      finetuneStorageMB:
+        metadata?.finetuneStorageMB ?? limits.finetuneStorageMB,
+      aiAgentCount: metadata?.aiAgentCount ?? limits.aiAgentCount,
+
+      // Common limits
+      maxSavedRecipes: metadata?.maxSavedRecipes ?? limits.savedRecipes,
+      maxVectorDocs: metadata?.maxVectorDocs ?? limits.vectorDocs,
+      teamSeats: metadata?.teamSeats ?? limits.teamSeats,
     };
   } catch (error) {
     console.error("Error getting user entitlements:", error);
     // Return free tier limits on error
     return {
+      maxMessagesPerMonth: TIER_LIMITS.free.messagesPerMonth,
       maxMessagesPerDay: TIER_LIMITS.free.messagesPerDay,
       maxSavedRecipes: TIER_LIMITS.free.savedRecipes,
       maxVectorDocs: TIER_LIMITS.free.vectorDocs,
@@ -66,13 +93,19 @@ export async function getUserEntitlements(
 
 export async function checkMessageLimit(
   userId: string,
-  messageCount: number
+  messageCount: number,
+  period: "day" | "month" = "month"
 ): Promise<{ allowed: boolean; limit: number; remaining: number }> {
   const entitlements = await getUserEntitlements(userId);
-  const limit = entitlements.maxMessagesPerDay;
 
-  // -1 means unlimited
-  if (limit === -1) {
+  // Determine which limit to check based on period
+  const limit =
+    period === "day"
+      ? entitlements.maxMessagesPerDay
+      : entitlements.maxMessagesPerMonth ?? entitlements.messageCredits;
+
+  // -1 or undefined means unlimited
+  if (limit === -1 || limit === undefined) {
     return { allowed: true, limit: -1, remaining: -1 };
   }
 

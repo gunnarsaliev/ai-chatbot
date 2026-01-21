@@ -27,7 +27,6 @@ import {
   type Suggestion,
   stream,
   suggestion,
-  type Subscription,
   subscription,
   type User,
   user,
@@ -630,12 +629,19 @@ export async function upsertSubscription({
   currentPeriodStart,
   currentPeriodEnd,
   cancelAtPeriodEnd,
+  metadata,
 }: {
   userId: string;
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
   stripePriceId?: string;
-  tier: "free" | "pro" | "creator" | "business" | "enterprise";
+  tier:
+    | "free"
+    | "pro"
+    | "power"
+    | "business_free"
+    | "business_starter"
+    | "business_pro";
   billingInterval?: "monthly" | "annual";
   status?:
     | "active"
@@ -648,6 +654,7 @@ export async function upsertSubscription({
   currentPeriodStart?: Date;
   currentPeriodEnd?: Date;
   cancelAtPeriodEnd?: boolean;
+  metadata?: any;
 }) {
   try {
     const [existingSubscription] = await db
@@ -668,6 +675,7 @@ export async function upsertSubscription({
           currentPeriodStart,
           currentPeriodEnd,
           cancelAtPeriodEnd,
+          metadata,
           updatedAt: new Date(),
         })
         .where(eq(subscription.userId, userId))
@@ -687,6 +695,7 @@ export async function upsertSubscription({
         currentPeriodStart,
         currentPeriodEnd,
         cancelAtPeriodEnd,
+        metadata,
         createdAt: new Date(),
         updatedAt: new Date(),
       })

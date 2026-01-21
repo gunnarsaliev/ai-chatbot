@@ -1,14 +1,22 @@
+import { eq } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/postgres-js";
+import { headers } from "next/headers";
+import { NextResponse } from "next/server";
+import postgres from "postgres";
+import type Stripe from "stripe";
 import {
   getUserByStripeCustomerId,
   upsertSubscription,
 } from "@/lib/db/queries";
-import { getPriceDetails, stripe } from "@/lib/stripe";
-import { headers } from "next/headers";
-import { NextResponse } from "next/server";
-import type Stripe from "stripe";
+import { user } from "@/lib/db/schema";
+import { getPriceDetails, isBusinessTier, stripe } from "@/lib/stripe";
+
+// biome-ignore lint: Forbidden non-null assertion.
+const client = postgres(process.env.POSTGRES_URL!);
+const db = drizzle(client);
 
 // GET handler to verify webhook is accessible and ready to receive events
-export async function GET() {
+export function GET() {
   return NextResponse.json({
     message: "Stripe webhook endpoint is active",
     timestamp: new Date().toISOString(),
@@ -43,10 +51,7 @@ export async function POST(request: Request) {
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
   } catch (error) {
     console.error("Webhook signature verification failed:", error);
-    return NextResponse.json(
-      { error: "Invalid signature" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
   try {
@@ -55,7 +60,7 @@ export async function POST(request: Request) {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        console.log(`[Webhook] Checkout session completed:`, {
+        console.log("[Webhook] Checkout session completed:", {
           sessionId: session.id,
           customer: session.customer,
           mode: session.mode,
@@ -69,7 +74,7 @@ export async function POST(request: Request) {
           );
 
           await handleSubscriptionUpdate(subscription);
-          console.log(`[Webhook] Subscription created successfully`);
+          console.log("[Webhook] Subscription created successfully");
         }
         break;
       }
@@ -92,9 +97,8 @@ export async function POST(request: Request) {
         // @ts-expect-error - subscription exists on Invoice but may not be in type definition
         const subscriptionId = invoice.subscription;
         if (subscriptionId && typeof subscriptionId === "string") {
-          const subscription = await stripe.subscriptions.retrieve(
-            subscriptionId
-          );
+          const subscription =
+            await stripe.subscriptions.retrieve(subscriptionId);
           await handleSubscriptionUpdate(subscription);
         }
         break;
@@ -118,7 +122,7 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
   const customerId = subscription.customer as string;
   const priceId = subscription.items.data[0]?.price.id;
 
-  console.log(`[handleSubscriptionUpdate] Processing subscription:`, {
+  console.log("[handleSubscriptionUpdate] Processing subscription:", {
     subscriptionId: subscription.id,
     customerId,
     priceId,
@@ -126,40 +130,86 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
   });
 
   if (!priceId) {
-    console.error("[handleSubscriptionUpdate] No price ID found in subscription");
+    console.error(
+      "[handleSubscriptionUpdate] No price ID found in subscription"
+    );
     return;
   }
 
   // Get user by Stripe customer ID
-  const user = await getUserByStripeCustomerId({
+  const foundUser = await getUserByStripeCustomerId({
     stripeCustomerId: customerId,
   });
 
-  if (!user) {
-    console.error(`[handleSubscriptionUpdate] No user found for Stripe customer ${customerId}`);
-    console.error(`[handleSubscriptionUpdate] This likely means the customer was created in Stripe but not linked in our database`);
+  if (!foundUser) {
+    console.error(
+      `[handleSubscriptionUpdate] No user found for Stripe customer ${customerId}`
+    );
+    console.error(
+      "[handleSubscriptionUpdate] This likely means the customer was created in Stripe but not linked in our database"
+    );
     return;
   }
 
-  console.log(`[handleSubscriptionUpdate] Found user:`, { userId: user.id, email: user.email });
+  console.log("[handleSubscriptionUpdate] Found user:", {
+    userId: foundUser.id,
+    email: foundUser.email,
+  });
 
   // Get tier and interval from price ID
   const priceDetails = getPriceDetails(priceId);
 
   if (!priceDetails) {
     console.error(`[handleSubscriptionUpdate] Unknown price ID: ${priceId}`);
-    console.error(`[handleSubscriptionUpdate] Make sure this price ID is configured in STRIPE_PRICE_* environment variables`);
+    console.error(
+      "[handleSubscriptionUpdate] Make sure this price ID is configured in STRIPE_PRICE_* environment variables"
+    );
     return;
   }
 
-  console.log(`[handleSubscriptionUpdate] Price details:`, priceDetails);
+  console.log("[handleSubscriptionUpdate] Price details:", priceDetails);
 
-  // Upsert subscription
+  // Determine user type based on tier
+  const userType = isBusinessTier(priceDetails.tier)
+    ? "business"
+    : "individual";
+
+  // Update user type based on subscription tier
+  try {
+    await db.update(user).set({ userType }).where(eq(user.id, foundUser.id));
+    console.log("[handleSubscriptionUpdate] Updated user type to:", userType);
+  } catch (error) {
+    console.error(
+      "[handleSubscriptionUpdate] Error updating user type:",
+      error
+    );
+  }
+
+  // Get Stripe product metadata for this price
+  let metadata: any = {};
+  try {
+    const price = await stripe.prices.retrieve(priceId, {
+      expand: ["product"],
+    });
+    const product = price.product as Stripe.Product;
+    metadata = product.metadata || {};
+    console.log(
+      "[handleSubscriptionUpdate] Stripe product metadata:",
+      metadata
+    );
+  } catch (error) {
+    console.error(
+      "[handleSubscriptionUpdate] Error fetching Stripe product metadata:",
+      error
+    );
+  }
+
+  // Upsert subscription with metadata
   // Access period properties via index signature to avoid type errors
   const sub = subscription as any;
 
   const subscriptionData = {
-    userId: user.id,
+    userId: foundUser.id,
     stripeCustomerId: customerId,
     stripeSubscriptionId: subscription.id,
     stripePriceId: priceId,
@@ -173,20 +223,32 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
       ? new Date(sub.current_period_end * 1000)
       : undefined,
     cancelAtPeriodEnd: sub.cancel_at_period_end ?? false,
+    metadata,
   };
 
-  console.log(`[handleSubscriptionUpdate] Upserting subscription:`, subscriptionData);
+  console.log(
+    "[handleSubscriptionUpdate] Upserting subscription:",
+    subscriptionData
+  );
 
   try {
     await upsertSubscription(subscriptionData);
-    console.log(`[handleSubscriptionUpdate] Successfully upserted subscription for user ${user.id}`);
+    console.log(
+      "[handleSubscriptionUpdate] Successfully upserted subscription for user",
+      foundUser.id
+    );
   } catch (error) {
-    console.error(`[handleSubscriptionUpdate] Error upserting subscription:`, error);
+    console.error(
+      "[handleSubscriptionUpdate] Error upserting subscription:",
+      error
+    );
     throw error;
   }
 }
 
-async function handleSubscriptionCancellation(subscription: Stripe.Subscription) {
+async function handleSubscriptionCancellation(
+  subscription: Stripe.Subscription
+) {
   const customerId = subscription.customer as string;
 
   // Get user by Stripe customer ID

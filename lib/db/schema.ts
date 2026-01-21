@@ -16,6 +16,9 @@ export const user = pgTable("User", {
   email: varchar("email", { length: 64 }).notNull(),
   password: varchar("password", { length: 64 }),
   stripeCustomerId: varchar("stripeCustomerId", { length: 255 }),
+  userType: varchar("userType", { enum: ["individual", "business"] })
+    .notNull()
+    .default("individual"),
 });
 
 export type User = InferSelectModel<typeof user>;
@@ -180,7 +183,14 @@ export const subscription = pgTable("Subscription", {
   stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 255 }),
   stripePriceId: varchar("stripePriceId", { length: 255 }),
   tier: varchar("tier", {
-    enum: ["free", "pro", "creator", "business", "enterprise"],
+    enum: [
+      "free",
+      "pro",
+      "power",
+      "business_free",
+      "business_starter",
+      "business_pro",
+    ],
   })
     .notNull()
     .default("free"),
@@ -201,6 +211,7 @@ export const subscription = pgTable("Subscription", {
   currentPeriodStart: timestamp("currentPeriodStart"),
   currentPeriodEnd: timestamp("currentPeriodEnd"),
   cancelAtPeriodEnd: boolean("cancelAtPeriodEnd").default(false),
+  metadata: json("metadata"),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 });

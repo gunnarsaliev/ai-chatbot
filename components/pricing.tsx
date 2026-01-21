@@ -1,6 +1,8 @@
 "use client";
 
+import { CheckIcon } from "@radix-ui/react-icons";
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -10,10 +12,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { CheckIcon } from "@radix-ui/react-icons";
 
 type BillingInterval = "monthly" | "annual";
+type PlanType = "individual" | "business";
 
 interface PricingTier {
   name: string;
@@ -21,9 +22,7 @@ interface PricingTier {
   priceAnnual: number;
   priceIdMonthly?: string;
   priceIdAnnual?: string;
-  messagesPerDay: string;
-  savedRecipes: string;
-  vectorDocs: string;
+  description: string;
   features: string[];
   popular?: boolean;
   cta: string;
@@ -31,104 +30,134 @@ interface PricingTier {
 
 // Stripe price IDs - these will be undefined until you configure them in .env.local
 const STRIPE_PRICES = {
+  // B2C Individual Plans
   proMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO_MONTHLY,
   proAnnual: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO_ANNUAL,
-  creatorMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_CREATOR_MONTHLY,
-  creatorAnnual: process.env.NEXT_PUBLIC_STRIPE_PRICE_CREATOR_ANNUAL,
-  businessMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_BUSINESS_MONTHLY,
-  businessAnnual: process.env.NEXT_PUBLIC_STRIPE_PRICE_BUSINESS_ANNUAL,
+  powerMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_POWER_MONTHLY,
+  powerAnnual: process.env.NEXT_PUBLIC_STRIPE_PRICE_POWER_ANNUAL,
+
+  // B2B Business Plans
+  businessStarterMonthly:
+    process.env.NEXT_PUBLIC_STRIPE_PRICE_BUSINESS_STARTER_MONTHLY,
+  businessStarterAnnual:
+    process.env.NEXT_PUBLIC_STRIPE_PRICE_BUSINESS_STARTER_ANNUAL,
+  businessProMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_BUSINESS_PRO_MONTHLY,
+  businessProAnnual: process.env.NEXT_PUBLIC_STRIPE_PRICE_BUSINESS_PRO_ANNUAL,
 };
 
-const tiers: PricingTier[] = [
+// B2C Individual Tiers
+const individualTiers: PricingTier[] = [
   {
     name: "Free",
     priceMonthly: 0,
     priceAnnual: 0,
-    messagesPerDay: "50",
-    savedRecipes: "5",
-    vectorDocs: "50",
+    description: "100 messages/month, 10/day cap",
     features: [
-      "Basic recipes",
-      "Personal profile (age/weight/goals)",
-      "Limited chat history",
+      "100 total messages per month",
+      "10 messages per day limit",
+      "5 saved recipes",
+      "Basic chat history",
     ],
     cta: "Get Started",
   },
   {
     name: "Pro",
-    priceMonthly: 8,
-    priceAnnual: 80,
+    priceMonthly: 5,
+    priceAnnual: 50, // ~17% discount
     priceIdMonthly: STRIPE_PRICES.proMonthly,
     priceIdAnnual: STRIPE_PRICES.proAnnual,
-    messagesPerDay: "500",
-    savedRecipes: "Unlimited",
-    vectorDocs: "1,000",
+    description: "500 messages/month, no daily cap",
     features: [
-      "Unlimited personal use",
-      "Public recipes",
-      "Full profile personalization",
-      "Priority model access",
+      "500 total messages per month",
+      "No daily cap",
+      "Unlimited saved recipes",
+      "Priority responses",
+      "Top-up credits available ($5 = 500 messages)",
     ],
     popular: true,
     cta: "Upgrade to Pro",
   },
   {
-    name: "Creator",
+    name: "Power",
     priceMonthly: 20,
-    priceAnnual: 200,
-    priceIdMonthly: STRIPE_PRICES.creatorMonthly,
-    priceIdAnnual: STRIPE_PRICES.creatorAnnual,
-    messagesPerDay: "2,000",
-    savedRecipes: "Unlimited",
-    vectorDocs: "5,000",
+    priceAnnual: 200, // ~17% discount
+    priceIdMonthly: STRIPE_PRICES.powerMonthly,
+    priceIdAnnual: STRIPE_PRICES.powerAnnual,
+    description: "3,000 messages/month for heavy users",
     features: [
-      "All Pro features",
-      "Verified badge",
-      "Featured recipes",
-      "Analytics on views/likes",
-      "Bio page",
+      "3,000 total messages per month",
+      "No daily cap",
+      "Unlimited saved recipes",
+      "Priority responses",
+      "Advanced meal planning",
     ],
-    cta: "Upgrade to Creator",
+    cta: "Upgrade to Power",
   },
+];
+
+// B2B Business Tiers
+const businessTiers: PricingTier[] = [
   {
-    name: "Business",
-    priceMonthly: 50,
-    priceAnnual: 500,
-    priceIdMonthly: STRIPE_PRICES.businessMonthly,
-    priceIdAnnual: STRIPE_PRICES.businessAnnual,
-    messagesPerDay: "10,000",
-    savedRecipes: "Unlimited",
-    vectorDocs: "Unlimited",
-    features: [
-      "All Creator features",
-      "Team members (up to 3)",
-      "Shared knowledge base",
-      "Branded responses",
-      "Client chats",
-    ],
-    cta: "Upgrade to Business",
-  },
-  {
-    name: "Enterprise",
+    name: "Free",
     priceMonthly: 0,
     priceAnnual: 0,
-    messagesPerDay: "Custom",
-    savedRecipes: "Unlimited",
-    vectorDocs: "Unlimited",
+    description: "Basic menu builder for small businesses",
     features: [
-      "Dedicated support",
-      "SLA",
-      "White-label",
-      "Custom integrations",
-      "Unlimited seats/docs",
+      "100 message credits/month",
+      "Unlimited menu items",
+      "Free QR code menu generator",
+      "500 KB AI agent storage",
+      "No chatbot/widget",
     ],
-    cta: "Contact Sales",
+    cta: "Get Started",
+  },
+  {
+    name: "Starter",
+    priceMonthly: 40,
+    priceAnnual: 408, // ~15% discount
+    priceIdMonthly: STRIPE_PRICES.businessStarterMonthly,
+    priceIdAnnual: STRIPE_PRICES.businessStarterAnnual,
+    description: "Per user/month for small restaurants",
+    features: [
+      "10,000 message credits/month",
+      "Full menu builder with chatbot",
+      "QR code & widget/plugin",
+      "Multi-language (50+)",
+      "20 MB AI agent fine-tune storage",
+      "3% fee after 10 free orders",
+      "Exposure in B2C marketplace",
+    ],
+    popular: true,
+    cta: "Upgrade to Starter",
+  },
+  {
+    name: "Pro",
+    priceMonthly: 90,
+    priceAnnual: 918, // ~15% discount
+    priceIdMonthly: STRIPE_PRICES.businessProMonthly,
+    priceIdAnnual: STRIPE_PRICES.businessProAnnual,
+    description: "Per user/month for growing chains",
+    features: [
+      "Unlimited message credits",
+      "Everything in Starter",
+      "60 MB AI agent fine-tune storage",
+      "Advanced analytics",
+      "Integrations (Shopify/Magento)",
+      "Custom branding",
+      "Priority support",
+      "Team access",
+    ],
+    cta: "Upgrade to Pro",
   },
 ];
 
 export function Pricing() {
+  const [planType, setPlanType] = useState<PlanType>("individual");
   const [interval, setInterval] = useState<BillingInterval>("monthly");
   const [loading, setLoading] = useState<string | null>(null);
+
+  const tiers = planType === "individual" ? individualTiers : businessTiers;
+  const discountPercentage = planType === "individual" ? 17 : 15;
 
   const handleSubscribe = async (tier: PricingTier) => {
     if (tier.name === "Free") {
@@ -137,18 +166,12 @@ export function Pricing() {
       return;
     }
 
-    if (tier.name === "Enterprise") {
-      // Redirect to contact form or open email
-      window.location.href = "mailto:sales@example.com";
-      return;
-    }
-
     const priceId =
       interval === "monthly" ? tier.priceIdMonthly : tier.priceIdAnnual;
 
     if (!priceId) {
       console.error("Price ID not configured for", tier.name, interval);
-      alert(
+      console.error(
         "Stripe is not configured yet. Please add your Stripe Price IDs to the .env.local file. See STRIPE_SETUP.md for instructions."
       );
       return;
@@ -168,7 +191,9 @@ export function Pricing() {
       if (!response.ok) {
         const errorData = await response.json();
         console.error("Checkout error:", errorData);
-        alert(`Error: ${errorData.error || "Failed to create checkout session"}`);
+        console.error(
+          `Error: ${errorData.error || "Failed to create checkout session"}`
+        );
         return;
       }
 
@@ -178,11 +203,13 @@ export function Pricing() {
         window.location.href = data.url;
       } else {
         console.error("No checkout URL returned");
-        alert("Failed to get checkout URL. Please try again.");
+        console.error("Failed to get checkout URL. Please try again.");
       }
     } catch (error) {
       console.error("Error creating checkout session:", error);
-      alert("An error occurred. Please check the console and try again.");
+      console.error(
+        "An error occurred. Please check the console and try again."
+      );
     } finally {
       setLoading(null);
     }
@@ -196,42 +223,69 @@ export function Pricing() {
           Select the perfect plan for your needs
         </p>
 
+        {/* Plan Type Tabs (Individual/Business) */}
+        <div className="inline-flex items-center gap-2 p-1 bg-muted rounded-lg mb-6">
+          <button
+            className={`px-6 py-2 rounded-md transition-colors ${
+              planType === "individual"
+                ? "bg-background shadow-sm"
+                : "hover:bg-background/50"
+            }`}
+            onClick={() => setPlanType("individual")}
+            type="button"
+          >
+            Individual
+          </button>
+          <button
+            className={`px-6 py-2 rounded-md transition-colors ${
+              planType === "business"
+                ? "bg-background shadow-sm"
+                : "hover:bg-background/50"
+            }`}
+            onClick={() => setPlanType("business")}
+            type="button"
+          >
+            Business
+          </button>
+        </div>
+
+        {/* Billing Interval Toggle */}
         <div className="inline-flex items-center gap-4 p-1 bg-muted rounded-lg">
           <button
-            type="button"
-            onClick={() => setInterval("monthly")}
             className={`px-6 py-2 rounded-md transition-colors ${
               interval === "monthly"
                 ? "bg-background shadow-sm"
                 : "hover:bg-background/50"
             }`}
+            onClick={() => setInterval("monthly")}
+            type="button"
           >
             Monthly
           </button>
           <button
-            type="button"
-            onClick={() => setInterval("annual")}
             className={`px-6 py-2 rounded-md transition-colors ${
               interval === "annual"
                 ? "bg-background shadow-sm"
                 : "hover:bg-background/50"
             }`}
+            onClick={() => setInterval("annual")}
+            type="button"
           >
             Annual
-            <Badge variant="secondary" className="ml-2">
-              Save 17%
+            <Badge className="ml-2" variant="secondary">
+              Save {discountPercentage}%
             </Badge>
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {tiers.map((tier) => (
           <Card
-            key={tier.name}
             className={`relative flex flex-col ${
               tier.popular ? "border-primary shadow-lg" : ""
             }`}
+            key={tier.name}
           >
             {tier.popular && (
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
@@ -242,9 +296,14 @@ export function Pricing() {
             <CardHeader>
               <CardTitle className="text-2xl">{tier.name}</CardTitle>
               <CardDescription>
-                <div className="mt-4">
-                  {tier.name === "Enterprise" ? (
-                    <span className="text-3xl font-bold">Custom</span>
+                <div className="mt-2 mb-4">
+                  <p className="text-sm text-muted-foreground">
+                    {tier.description}
+                  </p>
+                </div>
+                <div>
+                  {tier.priceMonthly === 0 ? (
+                    <span className="text-3xl font-bold">Free</span>
                   ) : (
                     <>
                       <span className="text-3xl font-bold">
@@ -266,39 +325,22 @@ export function Pricing() {
             </CardHeader>
 
             <CardContent className="flex-1">
-              <div className="space-y-3 mb-6">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Messages/day:</span>
-                  <span className="font-medium">{tier.messagesPerDay}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Saved recipes:</span>
-                  <span className="font-medium">{tier.savedRecipes}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Vector docs:</span>
-                  <span className="font-medium">{tier.vectorDocs}</span>
-                </div>
-              </div>
-
-              <div className="border-t pt-4">
-                <ul className="space-y-2">
-                  {tier.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-2 text-sm">
-                      <CheckIcon className="h-4 w-4 mt-0.5 text-primary shrink-0" />
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <ul className="space-y-3">
+                {tier.features.map((feature) => (
+                  <li className="flex items-start gap-2 text-sm" key={feature}>
+                    <CheckIcon className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
             </CardContent>
 
             <CardFooter>
               <Button
                 className="w-full"
-                variant={tier.popular ? "default" : "outline"}
-                onClick={() => handleSubscribe(tier)}
                 disabled={loading === tier.name}
+                onClick={() => handleSubscribe(tier)}
+                variant={tier.popular ? "default" : "outline"}
               >
                 {loading === tier.name ? "Loading..." : tier.cta}
               </Button>
