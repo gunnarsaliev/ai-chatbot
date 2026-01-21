@@ -35,9 +35,10 @@ export default async function ProfilePage() {
   const hasActiveSubscription = subscription?.status === "active";
 
   // Calculate usage percentages
-  const messagePercentage = entitlements.maxMessagesPerDay === -1
+  const maxMessagesPerDay = entitlements.maxMessagesPerDay;
+  const messagePercentage = !maxMessagesPerDay || maxMessagesPerDay === -1
     ? 0
-    : (messageCount / entitlements.maxMessagesPerDay) * 100;
+    : (messageCount / maxMessagesPerDay) * 100;
 
   return (
     <div className="flex flex-col w-full max-w-4xl mx-auto p-6 gap-6">
@@ -140,10 +141,10 @@ export default async function ProfilePage() {
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Messages (Today)</span>
               <span className="text-sm">
-                {messageCount} / {entitlements.maxMessagesPerDay === -1 ? "∞" : entitlements.maxMessagesPerDay}
+                {messageCount} / {!maxMessagesPerDay || maxMessagesPerDay === -1 ? "∞" : maxMessagesPerDay}
               </span>
             </div>
-            {entitlements.maxMessagesPerDay !== -1 && (
+            {maxMessagesPerDay && maxMessagesPerDay !== -1 && (
               <div className="w-full bg-muted rounded-full h-2">
                 <div
                   className="bg-primary h-2 rounded-full transition-all"

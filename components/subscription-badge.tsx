@@ -13,17 +13,19 @@ const tierColors: Record<
 > = {
   free: "secondary",
   pro: "default",
-  creator: "default",
-  business: "default",
-  enterprise: "default",
+  power: "default",
+  business_free: "secondary",
+  business_starter: "default",
+  business_pro: "default",
 };
 
 const tierLabels: Record<SubscriptionTier, string> = {
   free: "Free",
   pro: "Pro",
-  creator: "Creator",
-  business: "Business",
-  enterprise: "Enterprise",
+  power: "Power",
+  business_free: "Business Free",
+  business_starter: "Business Starter",
+  business_pro: "Business Pro",
 };
 
 export function SubscriptionBadge({ tier }: SubscriptionBadgeProps) {
