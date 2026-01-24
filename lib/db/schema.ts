@@ -2,6 +2,7 @@ import type { InferSelectModel } from "drizzle-orm";
 import {
   boolean,
   foreignKey,
+  integer,
   json,
   pgTable,
   primaryKey,
@@ -211,6 +212,10 @@ export const subscription = pgTable("Subscription", {
   currentPeriodStart: timestamp("currentPeriodStart"),
   currentPeriodEnd: timestamp("currentPeriodEnd"),
   cancelAtPeriodEnd: boolean("cancelAtPeriodEnd").default(false),
+  // Credit tracking columns
+  availableCredits: integer("availableCredits"),
+  totalCredits: integer("totalCredits"),
+  creditsResetAt: timestamp("creditsResetAt"),
   metadata: json("metadata"),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),

@@ -629,6 +629,9 @@ export async function upsertSubscription({
   currentPeriodStart,
   currentPeriodEnd,
   cancelAtPeriodEnd,
+  availableCredits,
+  totalCredits,
+  creditsResetAt,
   metadata,
 }: {
   userId: string;
@@ -654,6 +657,9 @@ export async function upsertSubscription({
   currentPeriodStart?: Date;
   currentPeriodEnd?: Date;
   cancelAtPeriodEnd?: boolean;
+  availableCredits?: number;
+  totalCredits?: number;
+  creditsResetAt?: Date;
   metadata?: any;
 }) {
   try {
@@ -675,6 +681,9 @@ export async function upsertSubscription({
           currentPeriodStart,
           currentPeriodEnd,
           cancelAtPeriodEnd,
+          availableCredits,
+          totalCredits,
+          creditsResetAt,
           metadata,
           updatedAt: new Date(),
         })
@@ -695,6 +704,9 @@ export async function upsertSubscription({
         currentPeriodStart,
         currentPeriodEnd,
         cancelAtPeriodEnd,
+        availableCredits,
+        totalCredits,
+        creditsResetAt,
         metadata,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -761,15 +773,28 @@ export async function deductMessageCredits({
       .from(subscription)
       .where(eq(subscription.userId, userId));
 
+    // If no subscription exists, this is a free/regular user without a paid plan
+    // They should use the B2C message limits instead of credit system
     if (!userSubscription) {
-      throw new ChatSDKError(
-        "not_found:database",
-        "Subscription not found for user"
+      console.log(
+        "[deductMessageCredits] No subscription found for user",
+        userId,
+        "- skipping credit deduction (using B2C limits)"
       );
+      return null;
     }
 
+    // Use new availableCredits column, fall back to metadata for backward compatibility
     const metadata = (userSubscription.metadata as any) || {};
-    const currentCredits = metadata.messageCredits || 0;
+    const currentCredits = userSubscription.availableCredits ?? metadata.messageCredits;
+
+    // If messageCredits is not set or is -1 (unlimited), skip deduction
+    if (currentCredits === undefined || currentCredits === -1) {
+      console.log(
+        "[deductMessageCredits] User has unlimited credits or no credit system - skipping deduction"
+      );
+      return null;
+    }
 
     if (currentCredits < credits) {
       throw new ChatSDKError(
@@ -780,9 +805,11 @@ export async function deductMessageCredits({
 
     const updatedCredits = currentCredits - credits;
 
+    // Update both the new column and metadata for backward compatibility during transition
     return await db
       .update(subscription)
       .set({
+        availableCredits: updatedCredits,
         metadata: {
           ...metadata,
           messageCredits: updatedCredits,

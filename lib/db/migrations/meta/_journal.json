@@ -78,6 +78,13 @@
       "when": 1768999745813,
       "tag": "0010_silly_sage",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1769269068350,
+      "tag": "0011_worthless_wildside",
+      "breakpoints": true
     }
   ]
 }

@@ -210,9 +210,40 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
     );
   }
 
-  // Upsert subscription with metadata
+  // Initialize credits for tiers that use credit system
   // Access period properties via index signature to avoid type errors
   const sub = subscription as any;
+  let availableCredits: number | undefined;
+  let totalCredits: number | undefined;
+  let creditsResetAt: Date | undefined;
+
+  // Determine credit amounts based on tier
+  const tierLimits = {
+    pro: { credits: 500 },
+    power: { credits: 3000 },
+    business_free: { credits: 100 },
+    business_starter: { credits: 10000 },
+    business_pro: { credits: -1 }, // unlimited
+  };
+
+  const tierCredits = tierLimits[priceDetails.tier as keyof typeof tierLimits];
+
+  if (tierCredits) {
+    // If credits are -1 (unlimited), don't set columns, leave as undefined/null
+    if (tierCredits.credits !== -1) {
+      availableCredits = metadata.messageCredits ?? tierCredits.credits;
+      totalCredits = tierCredits.credits;
+      creditsResetAt = sub.current_period_end
+        ? new Date(sub.current_period_end * 1000)
+        : undefined;
+      metadata.messageCredits = availableCredits; // Keep metadata in sync for backward compatibility
+      console.log(`[handleSubscriptionUpdate] Initialized ${priceDetails.tier} with`, availableCredits, "credits");
+    } else {
+      // Unlimited credits - set to -1 in metadata
+      metadata.messageCredits = -1;
+      console.log(`[handleSubscriptionUpdate] Initialized ${priceDetails.tier} with unlimited credits`);
+    }
+  }
 
   const subscriptionData = {
     userId: foundUser.id,
@@ -229,6 +260,9 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
       ? new Date(sub.current_period_end * 1000)
       : undefined,
     cancelAtPeriodEnd: sub.cancel_at_period_end ?? false,
+    availableCredits,
+    totalCredits,
+    creditsResetAt,
     metadata,
   };
 
@@ -315,9 +349,9 @@ async function handleCreditTopUp(session: Stripe.Checkout.Session) {
     currentCredits: subscription.metadata,
   });
 
-  // Add credits to existing balance
+  // Add credits to existing balance using new dedicated column
   const metadata = (subscription.metadata as any) || {};
-  const currentCredits = metadata.messageCredits || 0;
+  const currentCredits = subscription.availableCredits ?? metadata.messageCredits ?? 0;
   const newCredits = currentCredits + Number.parseInt(credits, 10);
 
   console.log("[handleCreditTopUp] Updating credits:", {
@@ -326,7 +360,7 @@ async function handleCreditTopUp(session: Stripe.Checkout.Session) {
     newTotal: newCredits,
   });
 
-  // Update subscription metadata with new credit balance
+  // Update subscription with new credit balance in both new column and metadata
   await upsertSubscription({
     userId,
     stripeCustomerId: subscription.stripeCustomerId || undefined,
@@ -338,6 +372,9 @@ async function handleCreditTopUp(session: Stripe.Checkout.Session) {
     currentPeriodStart: subscription.currentPeriodStart || undefined,
     currentPeriodEnd: subscription.currentPeriodEnd || undefined,
     cancelAtPeriodEnd: subscription.cancelAtPeriodEnd || false,
+    availableCredits: newCredits,
+    totalCredits: subscription.totalCredits ?? undefined,
+    creditsResetAt: subscription.creditsResetAt ?? undefined,
     metadata: {
       ...metadata,
       messageCredits: newCredits,

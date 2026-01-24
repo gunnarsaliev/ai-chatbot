@@ -59,8 +59,16 @@ export async function getUserEntitlements(
     const tier = subscription.tier as SubscriptionTier;
     const limits = TIER_LIMITS[tier];
 
-    // Check if Stripe metadata overrides exist
+    // Check if Stripe metadata overrides exist (for backward compatibility)
     const metadata = subscription.metadata as any;
+
+    // Use new availableCredits column, fall back to metadata for backward compatibility
+    let messageCredits = subscription.availableCredits ?? metadata?.messageCredits ?? limits.messageCredits;
+
+    // If this is a Pro/Power tier and no messageCredits exist, use messagesPerMonth as credits
+    if ((tier === "pro" || tier === "power") && messageCredits === undefined) {
+      messageCredits = limits.messagesPerMonth;
+    }
 
     return {
       // B2C limits
@@ -68,8 +76,8 @@ export async function getUserEntitlements(
         metadata?.maxMessagesPerMonth ?? limits.messagesPerMonth,
       maxMessagesPerDay: metadata?.maxMessagesPerDay ?? limits.messagesPerDay,
 
-      // B2B limits
-      messageCredits: metadata?.messageCredits ?? limits.messageCredits,
+      // B2B limits / Pro credit system (now using dedicated column)
+      messageCredits,
       finetuneStorageMB:
         metadata?.finetuneStorageMB ?? limits.finetuneStorageMB,
       aiAgentCount: metadata?.aiAgentCount ?? limits.aiAgentCount,
@@ -119,22 +127,34 @@ export async function checkMessageCredits(
   userId: string,
   requiredCredits: number
 ): Promise<{ allowed: boolean; currentCredits: number; remaining: number }> {
-  const entitlements = await getUserEntitlements(userId);
+  try {
+    const entitlements = await getUserEntitlements(userId);
 
-  // If messageCredits is undefined or -1, it means unlimited (B2B unlimited plan or B2C user)
-  if (
-    entitlements.messageCredits === undefined ||
-    entitlements.messageCredits === -1
-  ) {
+    // If messageCredits is -1, it means unlimited (B2B unlimited plan)
+    if (entitlements.messageCredits === -1) {
+      return { allowed: true, currentCredits: -1, remaining: -1 };
+    }
+
+    // If messageCredits is undefined, user doesn't have a credit-based subscription
+    // They should use B2C message limits instead, so we skip credit checks
+    if (entitlements.messageCredits === undefined) {
+      console.log(
+        "[checkMessageCredits] User has no credit system - allowing (will use B2C limits)"
+      );
+      return { allowed: true, currentCredits: -1, remaining: -1 };
+    }
+
+    const remaining = Math.max(0, entitlements.messageCredits - requiredCredits);
+    const allowed = entitlements.messageCredits >= requiredCredits;
+
+    return {
+      allowed,
+      currentCredits: entitlements.messageCredits,
+      remaining,
+    };
+  } catch (error) {
+    console.error("[checkMessageCredits] Error:", error);
+    // On error, allow but use B2C limits
     return { allowed: true, currentCredits: -1, remaining: -1 };
   }
-
-  const remaining = Math.max(0, entitlements.messageCredits - requiredCredits);
-  const allowed = entitlements.messageCredits >= requiredCredits;
-
-  return {
-    allowed,
-    currentCredits: entitlements.messageCredits,
-    remaining,
-  };
 }

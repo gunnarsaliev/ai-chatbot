@@ -76,8 +76,12 @@ export async function POST(request: Request) {
     const selectedModel = chatModels.find((m) => m.id === selectedChatModel);
     const modelCost = selectedModel?.cost || 1;
 
+    console.log("[Chat API] Selected model:", selectedChatModel, "Cost:", modelCost);
+
     // Check message credits for B2B users
     const creditCheck = await checkMessageCredits(session.user.id, modelCost);
+    console.log("[Chat API] Credit check result:", creditCheck);
+
     if (!creditCheck.allowed && creditCheck.currentCredits !== -1) {
       return new ChatSDKError("rate_limit:chat").toResponse();
     }
@@ -146,13 +150,16 @@ export async function POST(request: Request) {
 
       // Deduct message credits based on model cost
       try {
+        console.log("[Chat API] Deducting credits:", modelCost, "for user:", session.user.id);
         await deductMessageCredits({
           userId: session.user.id,
           credits: modelCost,
         });
+        console.log("[Chat API] Successfully deducted", modelCost, "credits");
       } catch (error) {
         // If credit deduction fails for B2B users, don't proceed with the message
         if (error instanceof ChatSDKError && error.type === "rate_limit") {
+          console.error("[Chat API] Insufficient credits");
           return error.toResponse();
         }
         // For other errors (e.g., no subscription), continue with B2C limits

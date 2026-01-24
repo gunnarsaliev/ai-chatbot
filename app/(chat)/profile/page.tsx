@@ -40,6 +40,14 @@ export default async function ProfilePage() {
     ? 0
     : (messageCount / maxMessagesPerDay) * 100;
 
+  // For Pro/Power users with credit system, show credits instead of message count
+  const hasCredits = entitlements.messageCredits !== undefined && entitlements.messageCredits !== -1;
+
+  // Use new availableCredits column, fall back to metadata, then entitlements for backward compatibility
+  const currentCredits = subscription?.availableCredits ?? (subscription?.metadata as any)?.messageCredits ?? entitlements.messageCredits ?? 0;
+  const totalCreditsAlloted = subscription?.totalCredits ?? entitlements.messageCredits ?? 0;
+  const usedCredits = hasCredits ? totalCreditsAlloted - currentCredits : 0;
+
   return (
     <div className="flex flex-col w-full max-w-4xl mx-auto p-6 gap-6">
       {/* Header */}
@@ -136,23 +144,48 @@ export default async function ProfilePage() {
           <CardDescription>Your current usage and limits</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          {/* Messages */}
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Messages (Today)</span>
-              <span className="text-sm">
-                {messageCount} / {!maxMessagesPerDay || maxMessagesPerDay === -1 ? "∞" : maxMessagesPerDay}
-              </span>
-            </div>
-            {maxMessagesPerDay && maxMessagesPerDay !== -1 && (
+          {/* Credits or Messages */}
+          {hasCredits ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Message Credits</span>
+                <span className="text-sm">
+                  {currentCredits} / {totalCreditsAlloted}
+                </span>
+              </div>
               <div className="w-full bg-muted rounded-full h-2">
                 <div
                   className="bg-primary h-2 rounded-full transition-all"
-                  style={{ width: `${Math.min(messagePercentage, 100)}%` }}
+                  style={{
+                    width: `${Math.min(
+                      (currentCredits / (totalCreditsAlloted || 1)) * 100,
+                      100
+                    )}%`
+                  }}
                 />
               </div>
-            )}
-          </div>
+              <p className="text-xs text-muted-foreground">
+                {usedCredits} credits used • Resets monthly
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Messages (Today)</span>
+                <span className="text-sm">
+                  {messageCount} / {!maxMessagesPerDay || maxMessagesPerDay === -1 ? "∞" : maxMessagesPerDay}
+                </span>
+              </div>
+              {maxMessagesPerDay && maxMessagesPerDay !== -1 && (
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div
+                    className="bg-primary h-2 rounded-full transition-all"
+                    style={{ width: `${Math.min(messagePercentage, 100)}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           <Separator />
 
