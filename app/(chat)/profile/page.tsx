@@ -1,15 +1,26 @@
-import { redirect } from "next/navigation";
-import Image from "next/image";
-import { auth } from "@/app/(auth)/auth";
-import { getSubscriptionByUserId, getMessageCountByUserId } from "@/lib/db/queries";
-import { getUserEntitlements } from "@/lib/ai/entitlements";
-import { SubscriptionBadge } from "@/components/subscription-badge";
-import { ManageSubscriptionButton } from "@/components/manage-subscription-button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { auth } from "@/app/(auth)/auth";
+import GradientBackground from "@/components/GradientBackground";
+import { ManageSubscriptionButton } from "@/components/manage-subscription-button";
+import { ProfileAvatarUpload } from "@/components/profile-avatar-upload";
+import { SubscriptionBadge } from "@/components/subscription-badge";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { getUserEntitlements } from "@/lib/ai/entitlements";
+import {
+  getMessageCountByUserId,
+  getSubscriptionByUserId,
+  getUserById,
+} from "@/lib/db/queries";
 import type { SubscriptionTier } from "@/lib/stripe";
 
 export const metadata = {
@@ -25,31 +36,42 @@ export default async function ProfilePage() {
   }
 
   // Fetch user data
-  const [subscription, messageCount, entitlements] = await Promise.all([
-    getSubscriptionByUserId({ userId: session.user.id }),
-    getMessageCountByUserId({ id: session.user.id, differenceInHours: 24 }),
-    getUserEntitlements(session.user.id),
-  ]);
+  const [subscription, messageCount, entitlements, userData] =
+    await Promise.all([
+      getSubscriptionByUserId({ userId: session.user.id }),
+      getMessageCountByUserId({ id: session.user.id, differenceInHours: 24 }),
+      getUserEntitlements(session.user.id),
+      getUserById(session.user.id),
+    ]);
 
   const tier = (subscription?.tier || "free") as SubscriptionTier;
   const hasActiveSubscription = subscription?.status === "active";
 
   // Calculate usage percentages
   const maxMessagesPerDay = entitlements.maxMessagesPerDay;
-  const messagePercentage = !maxMessagesPerDay || maxMessagesPerDay === -1
-    ? 0
-    : (messageCount / maxMessagesPerDay) * 100;
+  const messagePercentage =
+    !maxMessagesPerDay || maxMessagesPerDay === -1
+      ? 0
+      : (messageCount / maxMessagesPerDay) * 100;
 
   // For Pro/Power users with credit system, show credits instead of message count
-  const hasCredits = entitlements.messageCredits !== undefined && entitlements.messageCredits !== -1;
+  const hasCredits =
+    entitlements.messageCredits !== undefined &&
+    entitlements.messageCredits !== -1;
 
   // Use new availableCredits column, fall back to metadata, then entitlements for backward compatibility
-  const currentCredits = subscription?.availableCredits ?? (subscription?.metadata as any)?.messageCredits ?? entitlements.messageCredits ?? 0;
-  const totalCreditsAlloted = subscription?.totalCredits ?? entitlements.messageCredits ?? 0;
+  const currentCredits =
+    subscription?.availableCredits ??
+    (subscription?.metadata as any)?.messageCredits ??
+    entitlements.messageCredits ??
+    0;
+  const totalCreditsAlloted =
+    subscription?.totalCredits ?? entitlements.messageCredits ?? 0;
   const usedCredits = hasCredits ? totalCreditsAlloted - currentCredits : 0;
 
   return (
     <div className="flex flex-col w-full max-w-4xl mx-auto p-6 gap-6">
+      <GradientBackground />
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold mb-2">Profile</h1>
@@ -66,18 +88,17 @@ export default async function ProfilePage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-6">
           <div className="flex items-center gap-4">
-            <Image
-              alt={session.user.email ?? "User Avatar"}
-              className="rounded-full"
-              height={64}
-              src={`https://avatar.vercel.sh/${session.user.email}`}
-              width={64}
+            <ProfileAvatarUpload
+              currentAvatarUrl={userData?.avatarUrl ?? undefined}
+              email={session.user.email ?? "User"}
             />
             <div className="flex flex-col gap-1">
               <p className="text-lg font-semibold">{session.user.email}</p>
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-xs">
-                  {session.user.type === "guest" ? "Guest Account" : "Regular Account"}
+                <Badge className="text-xs" variant="outline">
+                  {session.user.type === "guest"
+                    ? "Guest Account"
+                    : "Regular Account"}
                 </Badge>
                 <SubscriptionBadge tier={tier} />
               </div>
@@ -106,7 +127,9 @@ export default async function ProfilePage() {
             {subscription?.billingInterval && (
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Billing</span>
-                <span className="text-sm capitalize">{subscription.billingInterval}</span>
+                <span className="text-sm capitalize">
+                  {subscription.billingInterval}
+                </span>
               </div>
             )}
 
@@ -120,7 +143,7 @@ export default async function ProfilePage() {
             )}
 
             {subscription?.cancelAtPeriodEnd && (
-              <Badge variant="destructive" className="w-fit">
+              <Badge className="w-fit" variant="destructive">
                 Subscription will cancel at period end
               </Badge>
             )}
@@ -129,8 +152,10 @@ export default async function ProfilePage() {
           <Separator />
 
           <div className="flex flex-col gap-2">
-            <ManageSubscriptionButton hasActiveSubscription={hasActiveSubscription} />
-            <Button variant="outline" asChild>
+            <ManageSubscriptionButton
+              hasActiveSubscription={hasActiveSubscription}
+            />
+            <Button asChild variant="outline">
               <Link href="/pricing">View All Plans</Link>
             </Button>
           </div>
@@ -160,7 +185,7 @@ export default async function ProfilePage() {
                     width: `${Math.min(
                       (currentCredits / (totalCreditsAlloted || 1)) * 100,
                       100
-                    )}%`
+                    )}%`,
                   }}
                 />
               </div>
@@ -173,7 +198,10 @@ export default async function ProfilePage() {
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Messages (Today)</span>
                 <span className="text-sm">
-                  {messageCount} / {!maxMessagesPerDay || maxMessagesPerDay === -1 ? "∞" : maxMessagesPerDay}
+                  {messageCount} /{" "}
+                  {!maxMessagesPerDay || maxMessagesPerDay === -1
+                    ? "∞"
+                    : maxMessagesPerDay}
                 </span>
               </div>
               {maxMessagesPerDay && maxMessagesPerDay !== -1 && (
@@ -193,7 +221,10 @@ export default async function ProfilePage() {
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Saved Recipes</span>
             <span className="text-sm">
-              0 / {entitlements.maxSavedRecipes === -1 ? "∞" : entitlements.maxSavedRecipes}
+              0 /{" "}
+              {entitlements.maxSavedRecipes === -1
+                ? "∞"
+                : entitlements.maxSavedRecipes}
             </span>
           </div>
 
@@ -203,7 +234,10 @@ export default async function ProfilePage() {
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Vector Documents</span>
             <span className="text-sm">
-              0 / {entitlements.maxVectorDocs === -1 ? "∞" : entitlements.maxVectorDocs}
+              0 /{" "}
+              {entitlements.maxVectorDocs === -1
+                ? "∞"
+                : entitlements.maxVectorDocs}
             </span>
           </div>
 
@@ -213,7 +247,8 @@ export default async function ProfilePage() {
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Team Seats</span>
                 <span className="text-sm">
-                  0 / {entitlements.teamSeats === -1 ? "∞" : entitlements.teamSeats}
+                  0 /{" "}
+                  {entitlements.teamSeats === -1 ? "∞" : entitlements.teamSeats}
                 </span>
               </div>
             </>
@@ -227,10 +262,10 @@ export default async function ProfilePage() {
           <CardTitle>Quick Actions</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
-          <Button variant="outline" asChild className="justify-start">
+          <Button asChild className="justify-start" variant="outline">
             <Link href="/pricing">View Pricing Plans</Link>
           </Button>
-          <Button variant="outline" asChild className="justify-start">
+          <Button asChild className="justify-start" variant="outline">
             <Link href="/">New Chat</Link>
           </Button>
         </CardContent>
