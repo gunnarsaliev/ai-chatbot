@@ -747,3 +747,57 @@ export async function getUserByStripeCustomerId({
     );
   }
 }
+
+export async function deductMessageCredits({
+  userId,
+  credits,
+}: {
+  userId: string;
+  credits: number;
+}) {
+  try {
+    const [userSubscription] = await db
+      .select()
+      .from(subscription)
+      .where(eq(subscription.userId, userId));
+
+    if (!userSubscription) {
+      throw new ChatSDKError(
+        "not_found:database",
+        "Subscription not found for user"
+      );
+    }
+
+    const metadata = (userSubscription.metadata as any) || {};
+    const currentCredits = metadata.messageCredits || 0;
+
+    if (currentCredits < credits) {
+      throw new ChatSDKError(
+        "rate_limit:chat",
+        "Insufficient message credits"
+      );
+    }
+
+    const updatedCredits = currentCredits - credits;
+
+    return await db
+      .update(subscription)
+      .set({
+        metadata: {
+          ...metadata,
+          messageCredits: updatedCredits,
+        },
+        updatedAt: new Date(),
+      })
+      .where(eq(subscription.userId, userId))
+      .returning();
+  } catch (error) {
+    if (error instanceof ChatSDKError) {
+      throw error;
+    }
+    throw new ChatSDKError(
+      "bad_request:database",
+      "Failed to deduct message credits"
+    );
+  }
+}

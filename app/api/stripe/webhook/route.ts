@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import postgres from "postgres";
 import type Stripe from "stripe";
 import {
+  getSubscriptionByUserId,
   getUserByStripeCustomerId,
   upsertSubscription,
 } from "@/lib/db/queries";
@@ -65,6 +66,7 @@ export async function POST(request: Request) {
           customer: session.customer,
           mode: session.mode,
           subscription: session.subscription,
+          metadata: session.metadata,
         });
 
         if (session.mode === "subscription" && session.subscription) {
@@ -75,6 +77,10 @@ export async function POST(request: Request) {
 
           await handleSubscriptionUpdate(subscription);
           console.log("[Webhook] Subscription created successfully");
+        } else if (session.mode === "payment" && session.metadata?.type === "credit_topup") {
+          // Handle one-time credit purchase
+          await handleCreditTopUp(session);
+          console.log("[Webhook] Credit top-up processed successfully");
         }
         break;
       }
@@ -274,4 +280,71 @@ async function handleSubscriptionCancellation(
     currentPeriodEnd: undefined,
     cancelAtPeriodEnd: false,
   });
+}
+
+async function handleCreditTopUp(session: Stripe.Checkout.Session) {
+  const userId = session.metadata?.userId;
+  const credits = session.metadata?.credits;
+
+  if (!userId || !credits) {
+    console.error("[handleCreditTopUp] Missing required metadata:", {
+      userId,
+      credits,
+    });
+    return;
+  }
+
+  console.log("[handleCreditTopUp] Processing credit top-up:", {
+    userId,
+    credits,
+    sessionId: session.id,
+  });
+
+  // Get user's subscription
+  const subscription = await getSubscriptionByUserId({ userId });
+
+  if (!subscription) {
+    console.error(
+      `[handleCreditTopUp] No subscription found for user ${userId}`
+    );
+    return;
+  }
+
+  console.log("[handleCreditTopUp] Found subscription:", {
+    tier: subscription.tier,
+    currentCredits: subscription.metadata,
+  });
+
+  // Add credits to existing balance
+  const metadata = (subscription.metadata as any) || {};
+  const currentCredits = metadata.messageCredits || 0;
+  const newCredits = currentCredits + Number.parseInt(credits, 10);
+
+  console.log("[handleCreditTopUp] Updating credits:", {
+    currentCredits,
+    addedCredits: credits,
+    newTotal: newCredits,
+  });
+
+  // Update subscription metadata with new credit balance
+  await upsertSubscription({
+    userId,
+    stripeCustomerId: subscription.stripeCustomerId || undefined,
+    stripeSubscriptionId: subscription.stripeSubscriptionId || undefined,
+    stripePriceId: subscription.stripePriceId || undefined,
+    tier: subscription.tier,
+    billingInterval: subscription.billingInterval || undefined,
+    status: subscription.status || undefined,
+    currentPeriodStart: subscription.currentPeriodStart || undefined,
+    currentPeriodEnd: subscription.currentPeriodEnd || undefined,
+    cancelAtPeriodEnd: subscription.cancelAtPeriodEnd || false,
+    metadata: {
+      ...metadata,
+      messageCredits: newCredits,
+    },
+  });
+
+  console.log(
+    `[handleCreditTopUp] Successfully added ${credits} credits to user ${userId}. New balance: ${newCredits}`
+  );
 }

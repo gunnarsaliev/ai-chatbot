@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { unstable_serialize } from "swr/infinite";
+import { BuyCreditDialog } from "@/components/buy-credit-dialog";
 import { ChatHeader } from "@/components/chat-header";
 import {
   AlertDialog,
@@ -70,6 +71,7 @@ export function Chat({
 
   const [input, setInput] = useState<string>("");
   const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
+  const [showBuyCreditDialog, setShowBuyCreditDialog] = useState(false);
   const [currentModelId, setCurrentModelId] = useState(initialChatModel);
   const currentModelIdRef = useRef(currentModelId);
 
@@ -143,6 +145,9 @@ export function Chat({
           error.message?.includes("AI Gateway requires a valid credit card")
         ) {
           setShowCreditCardAlert(true);
+        } else if (error.type === "rate_limit") {
+          // Show buy credit dialog for rate limit errors
+          setShowBuyCreditDialog(true);
         } else {
           toast({
             type: "error",
@@ -276,6 +281,11 @@ export function Chat({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <BuyCreditDialog
+        open={showBuyCreditDialog}
+        onOpenChange={setShowBuyCreditDialog}
+      />
     </>
   );
 }

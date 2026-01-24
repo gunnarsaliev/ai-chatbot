@@ -114,3 +114,27 @@ export async function checkMessageLimit(
 
   return { allowed, limit, remaining };
 }
+
+export async function checkMessageCredits(
+  userId: string,
+  requiredCredits: number
+): Promise<{ allowed: boolean; currentCredits: number; remaining: number }> {
+  const entitlements = await getUserEntitlements(userId);
+
+  // If messageCredits is undefined or -1, it means unlimited (B2B unlimited plan or B2C user)
+  if (
+    entitlements.messageCredits === undefined ||
+    entitlements.messageCredits === -1
+  ) {
+    return { allowed: true, currentCredits: -1, remaining: -1 };
+  }
+
+  const remaining = Math.max(0, entitlements.messageCredits - requiredCredits);
+  const allowed = entitlements.messageCredits >= requiredCredits;
+
+  return {
+    allowed,
+    currentCredits: entitlements.messageCredits,
+    remaining,
+  };
+}

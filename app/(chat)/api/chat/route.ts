@@ -10,7 +10,8 @@ import {
 import { after } from "next/server";
 import { createResumableStreamContext } from "resumable-stream";
 import { auth, type UserType } from "@/app/(auth)/auth";
-import { entitlementsByUserType } from "@/lib/ai/entitlements";
+import { checkMessageCredits, entitlementsByUserType } from "@/lib/ai/entitlements";
+import { chatModels } from "@/lib/ai/models";
 import { type RequestHints, systemPrompt } from "@/lib/ai/prompts";
 import { getLanguageModel } from "@/lib/ai/providers";
 import { createDocument } from "@/lib/ai/tools/create-document";
@@ -20,6 +21,7 @@ import { updateDocument } from "@/lib/ai/tools/update-document";
 import { isProductionEnvironment } from "@/lib/constants";
 import {
   createStreamId,
+  deductMessageCredits,
   deleteChatById,
   getChatById,
   getMessageCountByUserId,
@@ -70,6 +72,17 @@ export async function POST(request: Request) {
 
     const userType: UserType = session.user.type;
 
+    // Get the selected model to check its cost
+    const selectedModel = chatModels.find((m) => m.id === selectedChatModel);
+    const modelCost = selectedModel?.cost || 1;
+
+    // Check message credits for B2B users
+    const creditCheck = await checkMessageCredits(session.user.id, modelCost);
+    if (!creditCheck.allowed && creditCheck.currentCredits !== -1) {
+      return new ChatSDKError("rate_limit:chat").toResponse();
+    }
+
+    // Also check B2C daily limits
     const messageCount = await getMessageCountByUserId({
       id: session.user.id,
       differenceInHours: 24,
@@ -130,6 +143,21 @@ export async function POST(request: Request) {
           },
         ],
       });
+
+      // Deduct message credits based on model cost
+      try {
+        await deductMessageCredits({
+          userId: session.user.id,
+          credits: modelCost,
+        });
+      } catch (error) {
+        // If credit deduction fails for B2B users, don't proceed with the message
+        if (error instanceof ChatSDKError && error.type === "rate_limit") {
+          return error.toResponse();
+        }
+        // For other errors (e.g., no subscription), continue with B2C limits
+        console.warn("Credit deduction failed, falling back to B2C limits:", error);
+      }
     }
 
     const isReasoningModel =
