@@ -519,6 +519,9 @@ function PureModelSelectorCompact({
                       {model.id === selectedModel.id && (
                         <CheckIcon className="ml-auto size-4" />
                       )}
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        x{model.cost}
+                      </span>
                     </ModelSelectorItem>
                   );
                 })}

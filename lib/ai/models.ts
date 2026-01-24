@@ -6,6 +6,7 @@ export type ChatModel = {
   name: string;
   provider: string;
   description: string;
+  cost: number;
 };
 
 export const chatModels: ChatModel[] = [
@@ -15,18 +16,21 @@ export const chatModels: ChatModel[] = [
     name: "Claude Haiku 4.5",
     provider: "anthropic",
     description: "Fast and affordable, great for everyday tasks",
+    cost: 1,
   },
   {
     id: "anthropic/claude-sonnet-4.5",
     name: "Claude Sonnet 4.5",
     provider: "anthropic",
     description: "Best balance of speed, intelligence, and cost",
+    cost: 1,
   },
   {
     id: "anthropic/claude-opus-4.5",
     name: "Claude Opus 4.5",
     provider: "anthropic",
     description: "Most capable Anthropic model",
+    cost: 3,
   },
   // OpenAI
   {
@@ -34,12 +38,14 @@ export const chatModels: ChatModel[] = [
     name: "GPT-4.1 Mini",
     provider: "openai",
     description: "Fast and cost-effective for simple tasks",
+    cost: 1,
   },
   {
     id: "openai/gpt-5.2",
     name: "GPT-5.2",
     provider: "openai",
     description: "Most capable OpenAI model",
+    cost: 2,
   },
   // Google
   {
@@ -47,12 +53,14 @@ export const chatModels: ChatModel[] = [
     name: "Gemini 2.5 Flash Lite",
     provider: "google",
     description: "Ultra fast and affordable",
+    cost: 1,
   },
   {
     id: "google/gemini-3-pro-preview",
     name: "Gemini 3 Pro",
     provider: "google",
     description: "Most capable Google model",
+    cost: 2,
   },
   // xAI
   {
@@ -60,6 +68,7 @@ export const chatModels: ChatModel[] = [
     name: "Grok 4.1 Fast",
     provider: "xai",
     description: "Fast with 30K context",
+    cost: 1,
   },
   // Reasoning models (extended thinking)
   {
@@ -67,12 +76,14 @@ export const chatModels: ChatModel[] = [
     name: "Claude 3.7 Sonnet",
     provider: "reasoning",
     description: "Extended thinking for complex problems",
+    cost: 1,
   },
   {
     id: "xai/grok-code-fast-1-thinking",
     name: "Grok Code Fast",
     provider: "reasoning",
     description: "Reasoning optimized for code",
+    cost: 2,
   },
 ];
 
